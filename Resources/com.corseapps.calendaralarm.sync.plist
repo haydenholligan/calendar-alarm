@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>com.corseapps.calendaralarm.sync</string>
+	<key>BundleProgram</key>
+	<string>Contents/MacOS/CalendarAlarm</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>CalendarAlarm</string>
+		<string>--sync</string>
+	</array>
+	<!-- One short check per minute. The process exits unless an alarm is due before the next check. -->
+	<key>StartInterval</key>
+	<integer>60</integer>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>LimitLoadToSessionType</key>
+	<string>Aqua</string>
+	<!-- Unthrottled, so the alarm window and sound are responsive. -->
+	<key>ProcessType</key>
+	<string>Interactive</string>
+</dict>
+</plist>
