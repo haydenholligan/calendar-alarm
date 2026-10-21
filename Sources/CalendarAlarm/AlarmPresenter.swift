@@ -63,7 +63,7 @@ final class AlarmPresenter: NSObject {
         }
         let alarm = queue.removeFirst()
         current = alarm
-        let window = self.window ?? AlarmWindow(presenter: self)
+        let window = self.window ?? AlarmWindow(presenter: self, fullScreen: Store.standard.loadConfig().fullScreen)
         self.window = window
         window.show(alarm, remaining: queue.count)
         startRinging()
@@ -95,7 +95,7 @@ final class AlarmPresenter: NSObject {
 
     func dismiss() {
         guard let alarm = current else { return }
-        try? store?.updateState { $0.dismiss(alarm) }
+        try? store?.updateState { $0.dismiss(alarm, at: Date()) }
         showNext()
     }
 
@@ -112,10 +112,13 @@ final class AlarmPresenter: NSObject {
     }
 }
 
-/// Borderless window covering the primary display, above full-screen apps.
+/// Borderless window above full-screen apps: either covering the primary
+/// display, or a compact floating panel near the top of it.
 @MainActor
 final class AlarmWindow: NSWindow {
     private unowned let presenter: AlarmPresenter
+    private let fullScreen: Bool
+    private let stack = NSStackView()
     private let statusLabel = AlarmWindow.label(size: 22, weight: .medium)
     private let titleLabel = AlarmWindow.label(size: 56, weight: .bold)
     private let detailLabel = AlarmWindow.label(size: 22, weight: .regular)
@@ -126,17 +129,26 @@ final class AlarmWindow: NSWindow {
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { true }
 
-    init(presenter: AlarmPresenter) {
+    init(presenter: AlarmPresenter, fullScreen: Bool) {
         self.presenter = presenter
+        self.fullScreen = fullScreen
         super.init(contentRect: .zero, styleMask: [.borderless], backing: .buffered, defer: false)
         isReleasedWhenClosed = false
         level = .screenSaver
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
         // The backdrop is dark regardless of system appearance, so controls must draw for dark too.
         appearance = NSAppearance(named: .darkAqua)
-        backgroundColor = NSColor(calibratedWhite: 0.06, alpha: 0.94)
         isOpaque = false
-        hasShadow = false
+        let backdrop = NSColor(calibratedWhite: 0.06, alpha: fullScreen ? 0.94 : 0.97)
+        backgroundColor = fullScreen ? backdrop : .clear
+        hasShadow = !fullScreen
+
+        let scale: CGFloat = fullScreen ? 1 : 0.6
+        statusLabel.font = .systemFont(ofSize: 22 * scale, weight: .medium)
+        titleLabel.font = .systemFont(ofSize: 56 * scale, weight: .bold)
+        detailLabel.font = .systemFont(ofSize: 22 * scale, weight: .regular)
+        queueLabel.font = .systemFont(ofSize: 16 * max(scale, 0.8), weight: .regular)
+        titleLabel.preferredMaxLayoutWidth = fullScreen ? 1200 : 520
 
         let snoozeButtons = [1, 5, 10].map { minutes in
             let b = NSButton(title: "Snooze \(minutes) min", target: self, action: #selector(snoozeClicked(_:)))
@@ -152,25 +164,31 @@ final class AlarmWindow: NSWindow {
         for b in snoozeButtons + [dismissButton, joinButton] {
             b.bezelStyle = .rounded
             b.controlSize = .large
-            b.font = .systemFont(ofSize: 18, weight: .medium)
+            b.font = .systemFont(ofSize: fullScreen ? 18 : 14, weight: .medium)
         }
         joinButton.bezelColor = .systemBlue
         dismissButton.bezelColor = .systemRed
 
         let buttons = NSStackView(views: [joinButton] + snoozeButtons + [dismissButton])
-        buttons.spacing = 16
-        let stack = NSStackView(views: [statusLabel, titleLabel, detailLabel, buttons, queueLabel])
+        buttons.spacing = fullScreen ? 16 : 10
+        for view in [statusLabel, titleLabel, detailLabel, buttons, queueLabel] { stack.addArrangedSubview(view) }
         stack.orientation = .vertical
-        stack.spacing = 24
-        stack.setCustomSpacing(48, after: detailLabel)
+        stack.spacing = fullScreen ? 24 : 12
+        stack.setCustomSpacing(fullScreen ? 48 : 24, after: detailLabel)
         stack.translatesAutoresizingMaskIntoConstraints = false
 
         let content = NSView()
+        if !fullScreen {
+            content.wantsLayer = true
+            content.layer?.backgroundColor = backdrop.cgColor
+            content.layer?.cornerRadius = 18
+            content.layer?.masksToBounds = true
+        }
         content.addSubview(stack)
         NSLayoutConstraint.activate([
             stack.centerXAnchor.constraint(equalTo: content.centerXAnchor),
             stack.centerYAnchor.constraint(equalTo: content.centerYAnchor),
-            stack.widthAnchor.constraint(lessThanOrEqualTo: content.widthAnchor, constant: -96),
+            stack.widthAnchor.constraint(lessThanOrEqualTo: content.widthAnchor, constant: fullScreen ? -96 : -48),
         ])
         contentView = content
 
@@ -217,7 +235,16 @@ final class AlarmWindow: NSWindow {
     }
 
     private func fitToScreen() {
-        if let screen = NSScreen.screens.first { setFrame(screen.frame, display: true) }
+        guard let screen = NSScreen.screens.first else { return }
+        if fullScreen {
+            setFrame(screen.frame, display: true)
+            return
+        }
+        let fitting = stack.fittingSize
+        let size = NSSize(width: max(480, fitting.width + 48), height: fitting.height + 48)
+        let area = screen.visibleFrame
+        let origin = NSPoint(x: area.midX - size.width / 2, y: area.maxY - size.height - area.height * 0.12)
+        setFrame(NSRect(origin: origin, size: size), display: true)
     }
 
     override func cancelOperation(_ sender: Any?) { presenter.dismiss() }

@@ -34,9 +34,11 @@ Calendar accounts must already be added in System Settings › Internet Accounts
 - All calendars, timed events only. All-day and declined events are skipped.
 - One alarm 5 minutes before start. Multiple lead times can be set in `config.json` (for example `"leadMinutes": [5, 0]`).
 - Snooze for 1, 5, or 10 minutes. **Join** appears for Zoom, Google Meet, and Teams links.
+- Full-screen alarm. Untick **Cover the whole screen** in Settings for a compact floating window instead. Either way it stays above full-screen apps.
+- If an alarm process crashes before you respond, the next check shows it once more, as long as it's still within the grace window.
 - Alarms missed by more than 5 minutes (asleep, logged out) are skipped, not replayed.
 
-Config: `~/Library/Application Support/com.corseapps.calendaralarm/config.json`. It holds `disabledCalendarIDs`, `leadMinutes`, `graceMinutes`, `skipAllDay`, and `skipDeclined`.
+Config: `~/Library/Application Support/com.corseapps.calendaralarm/config.json`. It holds `disabledCalendarIDs`, `leadMinutes`, `graceMinutes`, `skipAllDay`, `skipDeclined`, and `fullScreen`.
 
 ## Command line
 
@@ -56,15 +58,18 @@ app="/Applications/Calendar Alarm.app/Contents/MacOS/CalendarAlarm"
 - Events have to reach macOS Calendar first. Upstream sync delays from iCloud, Google, or Exchange are outside its control.
 - If the screen is locked, the sound plays but the window only appears after you unlock. Muted output or missing speakers silence it; the window still shows.
 - "Nothing in the background" means no Calendar Alarm process between checks. It does not mean zero cost. A check runs every minute; `--status` reports the measured CPU and memory per check.
+- **If you move the app, or rebuild it ad-hoc, open it once.** The background agent stays registered to the old copy, and its checks fail until the app is opened. Settings detects this and re-registers the agent. Nothing can notice it without the app running.
 - Not sandboxed and not on the App Store.
 
 ## Uninstall
+
+Click **Uninstall…** in the settings window, or run:
 
 ```sh
 make uninstall
 ```
 
-This removes the LaunchAgent, the app, the saved state, and the Calendar permission. Your calendar events are never modified.
+Either way, this removes the LaunchAgent, the app, the saved state, and the Calendar permission. Your calendar events are never modified.
 
 ## Privacy
 
@@ -74,7 +79,7 @@ Event data stays on your Mac. There is no network access, no analytics, and no c
 
 ```sh
 make test   # swift test: planner, snooze, dedupe, link detection, storage
-make app    # build and sign build/Calendar Alarm.app
+make app    # build and sign build/Calendar Alarm.app (universal; ARCHS=arm64 is faster)
 ```
 
 See `docs/feasibility.md` for what was verified on real hardware and how.

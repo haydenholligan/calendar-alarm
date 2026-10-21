@@ -7,6 +7,9 @@
 
 SIGN_IDENTITY ?= $(shell security find-identity -v -p codesigning | awk '/Apple Development/ && !/REVOKED|EXPIRED/ { print $$2; exit }')
 CONFIG ?= release
+# Universal by default; `make ARCHS=arm64` builds faster for local work.
+ARCHS ?= arm64 x86_64
+SWIFT_BUILD := swift build -c $(CONFIG) $(foreach a,$(ARCHS),--arch $(a))
 APP := build/Calendar Alarm.app
 INSTALL_DIR ?= /Applications
 INSTALLED := $(INSTALL_DIR)/Calendar Alarm.app
@@ -20,10 +23,10 @@ test:
 
 app:
 	@test -n "$(SIGN_IDENTITY)" || { echo "No signing identity found; pass SIGN_IDENTITY=- for ad-hoc"; exit 1; }
-	swift build -c $(CONFIG) --product CalendarAlarm
+	$(SWIFT_BUILD) --product CalendarAlarm
 	rm -rf "$(APP)"
 	mkdir -p "$(APP)/Contents/MacOS" "$(APP)/Contents/Resources" "$(APP)/Contents/Library/LaunchAgents"
-	cp "$$(swift build -c $(CONFIG) --show-bin-path)/CalendarAlarm" "$(APP)/Contents/MacOS/"
+	cp "$$($(SWIFT_BUILD) --show-bin-path)/CalendarAlarm" "$(APP)/Contents/MacOS/"
 	cp Resources/Info.plist "$(APP)/Contents/"
 	cp Resources/alarm.wav "$(APP)/Contents/Resources/"
 	cp Resources/com.corseapps.calendaralarm.sync.plist "$(APP)/Contents/Library/LaunchAgents/"

@@ -20,6 +20,7 @@ final class SettingsController: NSObject, NSApplicationDelegate, NSWindowDelegat
     private let agentCheckbox = NSButton(checkboxWithTitle: "Ring alarms in the background", target: nil, action: nil)
     private let agentLabel = NSTextField(wrappingLabelWithString: "")
     private let leadPopup = NSPopUpButton()
+    private let fullScreenCheckbox = NSButton(checkboxWithTitle: "Cover the whole screen", target: nil, action: nil)
     private let calendarsStack = NSStackView()
     private let statusLabel = NSTextField(wrappingLabelWithString: "")
 
@@ -46,6 +47,7 @@ final class SettingsController: NSObject, NSApplicationDelegate, NSWindowDelegat
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        if Agent.service.status == .enabled { _ = try? Agent.register(store: store) }
         buildWindow()
         refresh()
         window.center()
@@ -73,10 +75,13 @@ final class SettingsController: NSObject, NSApplicationDelegate, NSWindowDelegat
         }
         leadPopup.target = self
         leadPopup.action = #selector(leadChanged)
+        fullScreenCheckbox.target = self
+        fullScreenCheckbox.action = #selector(fullScreenToggled)
         calendarsStack.orientation = .vertical
         calendarsStack.alignment = .leading
         calendarsStack.spacing = 6
         for label in [accessLabel, agentLabel, statusLabel] {
+            label.preferredMaxLayoutWidth = 480
             label.textColor = .secondaryLabelColor
             label.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
         }
@@ -101,14 +106,16 @@ final class SettingsController: NSObject, NSApplicationDelegate, NSWindowDelegat
         let ringNow = NSButton(title: "Ring Now", target: self, action: #selector(ringNow))
         let testBackground = NSButton(title: "Test Background Alarm in 1 Minute", target: self, action: #selector(testBackground))
         let leadRow = NSStackView(views: [NSTextField(labelWithString: "Alert:"), leadPopup])
+        let uninstall = NSButton(title: "Uninstall…", target: self, action: #selector(uninstallClicked))
 
         let stack = NSStackView(views: [
             heading("Calendar access"), accessLabel, accessButton,
             heading("Background alarms"), agentCheckbox, agentLabel,
-            heading("Alerts"), leadRow,
+            heading("Alerts"), leadRow, fullScreenCheckbox,
             heading("Calendars"), scroll,
             NSStackView(views: [ringNow, testBackground]),
             statusLabel,
+            uninstall,
         ])
         stack.orientation = .vertical
         stack.alignment = .leading
@@ -123,7 +130,9 @@ final class SettingsController: NSObject, NSApplicationDelegate, NSWindowDelegat
             stack.topAnchor.constraint(equalTo: content.topAnchor, constant: 20),
             stack.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 20),
             stack.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -20),
-            stack.bottomAnchor.constraint(lessThanOrEqualTo: content.bottomAnchor, constant: -20),
+            stack.bottomAnchor.constraint(equalTo: content.bottomAnchor, constant: -20),
+            // The window takes its height from the content.
+            content.widthAnchor.constraint(equalToConstant: 520),
         ])
         window.contentView = content
     }
@@ -156,6 +165,7 @@ final class SettingsController: NSObject, NSApplicationDelegate, NSWindowDelegat
 
         let lead = config.leadMinutes.first ?? 5
         leadPopup.selectItem(at: Self.leadChoices.firstIndex(of: lead) ?? Self.leadChoices.firstIndex(of: 5)!)
+        fullScreenCheckbox.state = config.fullScreen ? .on : .off
         if config.leadMinutes.count > 1 {
             leadPopup.toolTip = "config.json lists several lead times; choosing here replaces them with one."
         }
@@ -209,7 +219,7 @@ final class SettingsController: NSObject, NSApplicationDelegate, NSWindowDelegat
     @objc private func agentToggled() {
         do {
             if agentCheckbox.state == .on {
-                try Agent.service.register()
+                try Agent.register(store: store)
                 if Agent.service.status == .requiresApproval { SMAppService.openSystemSettingsLoginItems() }
             } else {
                 try Agent.service.unregister()
@@ -223,6 +233,35 @@ final class SettingsController: NSObject, NSApplicationDelegate, NSWindowDelegat
     @objc private func leadChanged() {
         config.leadMinutes = [Self.leadChoices[leadPopup.indexOfSelectedItem]]
         saveConfig()
+    }
+
+    @objc private func fullScreenToggled() {
+        config.fullScreen = fullScreenCheckbox.state == .on
+        saveConfig()
+    }
+
+    @objc private func uninstallClicked() {
+        let alert = NSAlert()
+        alert.messageText = "Uninstall Calendar Alarm?"
+        alert.informativeText = "This stops background alarms, deletes Calendar Alarm's settings and history, removes its Calendar permission, and moves the app to the Trash. Your calendar events are not changed."
+        alert.addButton(withTitle: "Uninstall")
+        alert.addButton(withTitle: "Cancel")
+        alert.buttons[0].hasDestructiveAction = true
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+
+        try? Agent.service.unregister()
+        try? FileManager.default.removeItem(at: store.directory)
+        let tccutil = Process()
+        tccutil.executableURL = URL(fileURLWithPath: "/usr/bin/tccutil")
+        tccutil.arguments = ["reset", "Calendar", Bundle.main.bundleIdentifier ?? "com.corseapps.calendaralarm"]
+        try? tccutil.run()
+        tccutil.waitUntilExit()
+        NSWorkspace.shared.recycle([Bundle.main.bundleURL]) { _, error in
+            DispatchQueue.main.async {
+                if let error { NSAlert(error: error).runModal() }
+                NSApp.terminate(nil)
+            }
+        }
     }
 
     @objc private func calendarToggled(_ sender: NSButton) {

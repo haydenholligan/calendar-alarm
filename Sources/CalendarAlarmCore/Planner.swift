@@ -66,7 +66,9 @@ public enum Planner {
 
     static func pending(_ alarms: [Alarm], now: Date, state: State) -> [Alarm] {
         alarms.filter { a in
-            a.occurrence.end > now && !a.ledgerKeys.allSatisfy { state.fired[$0] != nil }
+            a.occurrence.end > now
+                && !a.ledgerKeys.allSatisfy { state.fired[$0] != nil }
+                && !a.ledgerKeys.contains { (state.presenting[$0]?.attempts ?? 0) >= State.maxAttempts }
         }
     }
 

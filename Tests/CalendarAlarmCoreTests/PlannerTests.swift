@@ -49,7 +49,7 @@ func plan(_ events: [Occurrence], config: Config = Config(), state: State = Stat
         let e = event("a", startsIn: 5)
         var state = State()
         guard case .ring(let alarms) = plan([e], state: state) else { Issue.record("expected ring"); return }
-        state.settle(alarms[0], at: t0)
+        state.acknowledge(alarms[0], at: t0)
         #expect(plan([e], state: state) == .idle)
         #expect(plan([e], state: state, now: t0.addingTimeInterval(30)) == .idle)
     }
@@ -58,7 +58,7 @@ func plan(_ events: [Occurrence], config: Config = Config(), state: State = Stat
         var state = State()
         let original = event("a", startsIn: 5)
         guard case .ring(let alarms) = plan([original], state: state) else { Issue.record("expected ring"); return }
-        state.settle(alarms[0], at: t0)
+        state.acknowledge(alarms[0], at: t0)
         let moved = event("a", startsIn: 65)
         #expect(plan([moved], state: state, now: t0.addingTimeInterval(3600)) != .idle)
     }
@@ -95,7 +95,7 @@ func plan(_ events: [Occurrence], config: Config = Config(), state: State = Stat
         #expect(alarms.count == 1)
         #expect(alarms[0].ledgerKeys.count == 2)
         var state = State()
-        state.settle(alarms[0], at: t0)
+        state.acknowledge(alarms[0], at: t0)
         #expect(plan([e], config: config, state: state) == .idle)
     }
 
@@ -105,7 +105,7 @@ func plan(_ events: [Occurrence], config: Config = Config(), state: State = Stat
         let e = event("a", startsIn: 5)
         var state = State()
         guard case .ring(let first) = plan([e], config: config, state: state) else { Issue.record("expected ring"); return }
-        state.settle(first[0], at: t0)
+        state.acknowledge(first[0], at: t0)
         let atStart = t0.addingTimeInterval(300)
         guard case .ring(let second) = plan([e], config: config, state: state, now: atStart) else {
             Issue.record("expected second stage"); return
@@ -127,13 +127,13 @@ func plan(_ events: [Occurrence], config: Config = Config(), state: State = Stat
         let e = event("a", startsIn: 5)
         var state = State()
         guard case .ring(let alarms) = plan([e], state: state) else { Issue.record("expected ring"); return }
-        state.settle(alarms[0], at: t0)
+        state.acknowledge(alarms[0], at: t0)
         state.snooze(alarms[0], minutes: 1, now: t0)
         #expect(state.snoozes.count == 1)
 
         let later = t0.addingTimeInterval(60)
         guard case .ring(let again) = plan([e], state: state, now: later) else { Issue.record("expected snooze"); return }
-        state.settle(again[0], at: later)
+        state.acknowledge(again[0], at: later)
         #expect(state.snoozes.isEmpty)
         #expect(plan([e], state: state, now: later.addingTimeInterval(5)) == .idle)
     }
@@ -150,7 +150,7 @@ func plan(_ events: [Occurrence], config: Config = Config(), state: State = Stat
         let e = event("a", startsIn: 5)
         var state = State()
         state.snoozes = [Snooze(eventID: "a", start: e.start, fireAt: t0.addingTimeInterval(120))]
-        state.dismiss(Alarm(occurrence: e, fireAt: t0, ledgerKeys: []))
+        state.dismiss(Alarm(occurrence: e, fireAt: t0, ledgerKeys: []), at: t0)
         #expect(state.snoozes.isEmpty)
     }
 
@@ -159,7 +159,7 @@ func plan(_ events: [Occurrence], config: Config = Config(), state: State = Stat
         state.testAlarms = [t0]
         guard case .ring(let alarms) = plan([], state: state) else { Issue.record("expected ring"); return }
         #expect(alarms[0].occurrence.isTest)
-        state.settle(alarms[0], at: t0)
+        state.acknowledge(alarms[0], at: t0)
         #expect(state.testAlarms.isEmpty)
         state.snooze(alarms[0], minutes: 5, now: t0)
         #expect(state.testAlarms == [t0.addingTimeInterval(300)])
@@ -242,5 +242,58 @@ func plan(_ events: [Occurrence], config: Config = Config(), state: State = Stat
         let again = try store.acquireRunLock()
         #expect(again != nil)
         close(again!)
+    }
+}
+
+@Suite struct CrashRetryTests {
+    @Test func unacknowledgedAlarmRingsOnceMore() {
+        let e = event("a", startsIn: 5)
+        var state = State()
+        guard case .ring(let first) = plan([e], state: state) else { Issue.record("expected ring"); return }
+        state.begin(first[0], at: t0)
+        // The presenter died. The next run, a minute later, shows it again.
+        let later = t0.addingTimeInterval(60)
+        guard case .ring(let retry) = plan([e], state: state, now: later) else { Issue.record("expected retry"); return }
+        state.begin(retry[0], at: later)
+        // Died again: give up rather than loop.
+        #expect(plan([e], state: state, now: later.addingTimeInterval(60)) == .idle)
+    }
+
+    @Test func acknowledgedAlarmIsNotRetried() {
+        let e = event("a", startsIn: 5)
+        var state = State()
+        guard case .ring(let alarms) = plan([e], state: state) else { Issue.record("expected ring"); return }
+        state.begin(alarms[0], at: t0)
+        state.dismiss(alarms[0], at: t0.addingTimeInterval(5))
+        #expect(state.presenting.isEmpty)
+        #expect(plan([e], state: state, now: t0.addingTimeInterval(60)) == .idle)
+    }
+
+    @Test func noRetryPastGrace() {
+        let e = event("a", startsIn: 5)
+        var state = State()
+        guard case .ring(let alarms) = plan([e], state: state) else { Issue.record("expected ring"); return }
+        state.begin(alarms[0], at: t0)
+        // Asleep for 6 minutes after the crash; grace is 5.
+        #expect(plan([e], state: state, now: t0.addingTimeInterval(360)) == .idle)
+    }
+
+    @Test func snoozeSurvivesCrash() {
+        let e = event("a", startsIn: 5)
+        var state = State()
+        let s = Snooze(eventID: "a", start: e.start, fireAt: t0)
+        state.snoozes = [s]
+        guard case .ring(let alarms) = plan([e], state: state) else { Issue.record("expected ring"); return }
+        state.begin(alarms.first { $0.ledgerKeys.contains(Planner.snoozeKey(s)) } ?? alarms[0], at: t0)
+        #expect(state.snoozes == [s])
+    }
+
+    @Test func oldStateFileWithoutPresentingDecodes() throws {
+        let json = #"{"fired":{"k":"2026-10-21T17:43:21Z"},"snoozes":[],"testAlarms":[]}"#
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let state = try decoder.decode(State.self, from: Data(json.utf8))
+        #expect(state.fired.count == 1)
+        #expect(state.presenting.isEmpty)
     }
 }

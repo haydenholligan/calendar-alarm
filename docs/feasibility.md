@@ -42,6 +42,21 @@ With this design there are no dynamic plists, no `launchctl` calls, no job manif
 
 Per-event job management is no longer needed. The one static agent registered with `SMAppService`. Status went to `enabled`, and the user saw no separate approval step during registration in this run.
 
+### Moving, replacing and re-registering the app (Mac mini, macOS 26.5.1, ad-hoc signed)
+
+| Change | Agent result | `SMAppService.status` |
+|---|---|---|
+| `make install` over the installed app, Apple Development signed (MacBook, several times) | Keeps running the new binary; Calendar access survives | `enabled` |
+| App moved out of `/Applications` | Every run fails: `last exit code = 78: EX_CONFIG` | still `enabled` |
+| Ad-hoc rebuild replaced in place | Every run fails with `EX_CONFIG` (the job carries a code requirement, `has LWCR`, and an ad-hoc requirement is the cdhash) | still `enabled` |
+| `register()` again while enabled | No-op; still broken | `enabled` |
+| `unregister()` then immediately `register()` in one process | Still broken | `enabled` |
+| `unregister()`, wait until status is `notRegistered`, then `register()` | Repaired; next run exits 0 | `enabled` |
+
+The fix is in `Agent.register(store:)`, called when Settings opens and by `--enable`. Each check records the bundle path and an executable identity (inode plus modification time). If either differs from the running app, or the last check is more than 150 s old, it re-registers using the wait-for-`notRegistered` sequence. It skips this when a check holds the run lock, because unregistering would kill a ringing alarm. Both the moved case and the ad-hoc rebuild case were broken on purpose and then repaired by a single `--enable`. There's no way to detect a moved app without something running, so the README tells users to open the app once after moving it.
+
+`scripts/uninstall.sh` was verified on the mini. It turns the agent off, removes the app and state, and resets Calendar permission. Afterwards no job remains (`launchctl print` says `Bad request`) and no process remains.
+
 ## Cost of an idle check (app's own measurement)
 
 Each `--sync` that exits without ringing records `getrusage` CPU time and `task_vm_info.ledger_phys_footprint_peak`:

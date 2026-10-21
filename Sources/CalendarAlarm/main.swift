@@ -27,7 +27,9 @@ case "--status":
     Status.print()
 
 case "--enable":
-    do { try Agent.service.register() } catch { fail("enable failed: \(error)") }
+    do {
+        if try Agent.register(store: .standard) { print("re-registered the background agent: it had stopped running here") }
+    } catch { fail("enable failed: \(error)") }
     print("background agent: \(Agent.describe(Agent.service.status))")
 
 case "--disable":

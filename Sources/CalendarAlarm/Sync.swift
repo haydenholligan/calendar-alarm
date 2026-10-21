@@ -31,7 +31,7 @@ enum Sync {
         }
     }
 
-    /// Read events, plan, and record any alarms about to ring as settled.
+    /// Read events, plan, and record any alarms about to ring as presenting.
     static func nextAction(store: Store) -> Planner.Action {
         let now = Date()
         let config = store.loadConfig()
@@ -51,10 +51,12 @@ enum Sync {
                 let alarms = Planner.alarms(occurrences: occurrences, config: config, state: state)
                 let action = Planner.next(now: now, alarms: alarms, state: state, config: config, horizon: horizon)
                 if case .ring(let due) = action {
-                    for alarm in due { state.settle(alarm, at: now) }
+                    for alarm in due { state.begin(alarm, at: now) }
                 }
                 state.nextAlarm = Planner.upcoming(now: now, alarms: alarms, state: state)
                 state.lastSync = now
+                state.agentBundlePath = Bundle.main.bundlePath
+                state.agentExecutableID = Agent.executableID()
                 state.calendarAccess = CalendarReader.describe(status)
                 state.lastEventCount = status == .fullAccess ? occurrences.count : nil
                 state.lastError = status == .fullAccess ? nil : "Calendar access is \(CalendarReader.describe(status)). Open Calendar Alarm to fix."
