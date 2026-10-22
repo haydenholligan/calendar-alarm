@@ -68,7 +68,21 @@ Each `--sync` that exits without ringing records `getrusage` CPU time and `task_
 | Wall time per run | 42 ms avg |
 | Peak physical footprint | 4.1 MB max |
 
-As a cross-check, `scripts/ram-monitor.py` caught one idle run live and `footprint` reported 4.0 MB peak, which agrees with the app's own reading. Extrapolating, 1,440 runs a day would be about 50 s of CPU per day. **This is an extrapolation, not a measurement.** The 24-hour monitor run and `--status` stats will replace it.
+As a cross-check, `scripts/ram-monitor.py` caught one idle run live and `footprint` reported 4.0 MB peak, which agrees with the app's own reading. Extrapolating, 1,440 runs a day would be about 50 s of CPU per day. **This is an extrapolation, not a measurement.** The 24-hour monitor run below measured it.
+
+### 24-hour monitor (MacBook Air, 2026-10-21 14:00 to 2026-10-22 14:00, normal use with sleep)
+
+| | Value |
+|---|---|
+| Time with no Calendar Alarm process | 98.3 % |
+| Time-weighted average footprint | 0.22 MB |
+| Idle checks recorded by the app | 453, 38 ms CPU avg, 4.3 MB peak |
+| Checks that waited for an alarm | 24, peak 4.0 MB |
+| Ringing processes | 1, peak 15.0 MB |
+
+The monitor flagged one waiting check that lived 105 s against its 80 s budget. It started one second before the Mac slept and stayed frozen until the next wake, so it used no CPU in that time.
+
+The run found one bug. A noon alarm was planned during a lid-closed maintenance wake (DarkWake) and stayed up until the lid opened 22 minutes later. Alarms still on screen after a wake are now skipped if they are past the grace window.
 
 ## Build and tooling findings
 

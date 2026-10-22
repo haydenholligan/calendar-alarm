@@ -288,6 +288,15 @@ func plan(_ events: [Occurrence], config: Config = Config(), state: State = Stat
         #expect(state.snoozes == [s])
     }
 
+    @Test func alarmLeftUpAcrossSleepIsMissed() {
+        let e = event("a", startsIn: 5)
+        guard case .ring(let alarms) = plan([e]) else { Issue.record("expected ring"); return }
+        // Rang during a lid-closed maintenance wake; the lid opened 22 minutes later.
+        #expect(Planner.isMissed(alarms[0], now: t0.addingTimeInterval(22 * 60), config: Config()))
+        // Woke within grace: keep ringing.
+        #expect(!Planner.isMissed(alarms[0], now: t0.addingTimeInterval(4 * 60), config: Config()))
+    }
+
     @Test func oldStateFileWithoutPresentingDecodes() throws {
         let json = #"{"fired":{"k":"2026-10-21T17:43:21Z"},"snoozes":[],"testAlarms":[]}"#
         let decoder = JSONDecoder()

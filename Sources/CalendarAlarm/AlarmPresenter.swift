@@ -19,6 +19,9 @@ final class AlarmPresenter: NSObject {
         queue = alarms
         self.store = store
         self.onFinish = onFinish
+        super.init()
+        NSWorkspace.shared.notificationCenter.addObserver(
+            self, selector: #selector(didWake), name: NSWorkspace.didWakeNotification, object: nil)
     }
 
     /// Run from `--sync`: start AppKit, ring, keep checking for alarms that came
@@ -89,6 +92,21 @@ final class AlarmPresenter: NSObject {
         window?.orderOut(nil)
         window = nil
         current = nil
+    }
+
+    /// The Mac slept with an alarm up, or the alarm started during a lid-closed
+    /// maintenance wake. Alarms now past the grace window are skipped, like any
+    /// other alarm missed while asleep, instead of greeting the user late.
+    @objc private func didWake() {
+        let now = Date()
+        let config = Store.standard.loadConfig()
+        let missed = ([current].compactMap { $0 } + queue).filter { Planner.isMissed($0, now: now, config: config) }
+        guard !missed.isEmpty else { return }
+        try? store?.updateState { state in
+            for alarm in missed { state.dismiss(alarm, at: now) }
+        }
+        queue.removeAll { Planner.isMissed($0, now: now, config: config) }
+        if let current, Planner.isMissed(current, now: now, config: config) { showNext() }
     }
 
     // MARK: Actions

@@ -72,13 +72,18 @@ public enum Planner {
         }
     }
 
+    /// Too late to ring: the alarm was due more than the grace window ago, so the
+    /// Mac was asleep or off when it should have rung.
+    public static func isMissed(_ alarm: Alarm, now: Date, config: Config) -> Bool {
+        alarm.fireAt < now - TimeInterval(config.graceMinutes * 60)
+    }
+
     /// Decide what a sync run should do right now.
     /// - Parameter horizon: how far ahead this run is responsible for; slightly more than the sync interval.
     public static func next(now: Date, alarms: [Alarm], state: State, config: Config, horizon: TimeInterval) -> Action {
-        let grace = TimeInterval(config.graceMinutes * 60)
         let pending = pending(alarms, now: now, state: state)
 
-        let due = pending.filter { $0.fireAt <= now && $0.fireAt >= now - grace }
+        let due = pending.filter { $0.fireAt <= now && !isMissed($0, now: now, config: config) }
         if !due.isEmpty {
             return .ring(merged(due))
         }
