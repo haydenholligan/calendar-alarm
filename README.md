@@ -6,6 +6,27 @@ Calendar Alarm reads the calendars already synced into macOS Calendar (iCloud, G
 
 Between checks nothing of Calendar Alarm stays in memory. There is no menu-bar icon, login item process, or helper. A LaunchAgent starts a short check once a minute. The check reads upcoming events and then exits. If an alarm is due before the next check, that same process waits, checks the event again, and rings.
 
+## Why this exists
+
+Calendar's own alerts are a notification banner and a single chime. If you're focused, in a full-screen app, or away from the desk for a minute, you miss the meeting.
+
+The apps that fix this stay running all day, usually as a menu-bar app, to watch your calendar. That costs memory for every minute you aren't in a meeting. The only published figure we found was one developer's claim of "under 60 MB idle."
+
+Calendar can also open a file or script when an event's alert fires, which needs no resident app. But you attach it to each event by hand, and it has historically worked only for "On My Mac" calendars, not iCloud or Google.
+
+Calendar Alarm combines the two: every event on every calendar, rung loudly, with nothing left running between checks.
+
+## What it focuses on
+
+- **Nothing resident.** Each check is a fresh process that exits in a fraction of a second. Over a measured 24 hours of normal use on a MacBook Air, no Calendar Alarm process was running 98.3% of the time. Average memory was 0.22 MB, and each idle check took 38 ms of CPU and peaked at 4.3 MB. The hard limit for any process that stays around without ringing is 15 MB. Details in [`docs/feasibility.md`](docs/feasibility.md).
+- **Hard to miss.** The alarm covers the screen, appears above full-screen apps and on every Space, and loops a sound until you press Dismiss, Snooze, or Join. If the screen is locked, the sound still plays. A compact window is available if full screen is too much.
+- **Every calendar, automatically.** It reads what macOS Calendar already syncs: iCloud, Google, Exchange, and local calendars. There's no per-event setup and no separate sign-in. Moved, cancelled, and declined events are picked up at the next check.
+- **Gets you into the meeting.** **Join** opens the event's Zoom, Google Meet, or Teams link directly.
+- **Private.** No network access, analytics, or account. Saved state holds hashed keys and timestamps, never event details.
+- **Recovers on its own.** If an alarm crashes before you respond, it rings once more. If the app is moved or rebuilt, opening it repairs the background agent.
+- **Small and native.** Swift, AppKit, and EventKit, with no third-party dependencies. MIT licensed.
+- **Honest about its limits.** It can't ring while the Mac is asleep, and it doesn't claim zero cost. See [Limitations](#limitations).
+
 ## Requirements
 
 - macOS 14 or later. Tested so far only on macOS 26.5 (MacBook Air, Apple Silicon).
