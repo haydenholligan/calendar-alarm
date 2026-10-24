@@ -1,6 +1,10 @@
 # Calendar Alarm
 
+[![Tests](https://github.com/haydenholligan/calendar-alarm/actions/workflows/test.yml/badge.svg)](https://github.com/haydenholligan/calendar-alarm/actions/workflows/test.yml)
+
 A full-screen, ringing alarm for your macOS Calendar events, with **no app running in the background**.
+
+![A full-screen alarm for "Design review" with Join, Snooze and Dismiss buttons, then the compact alarm window for "Weekly sync with Sam" over a notes window](docs/demo.gif)
 
 Calendar Alarm reads the calendars already synced into macOS Calendar (iCloud, Google, Exchange, local) and rings a full-screen alarm a few minutes before each event. The sound loops until you press **Dismiss**, **Snooze**, or **Join**.
 
@@ -67,6 +71,7 @@ Config: `~/Library/Application Support/com.corseapps.calendaralarm/config.json`.
 app="/Applications/Calendar Alarm.app/Contents/MacOS/CalendarAlarm"
 "$app" --status       # agent state, last check, next alarm, measured cost per check
 "$app" --test-in 60   # ask the background check to ring a test alarm in 60 s
+"$app" --ring-now "Design review" https://meet.google.com/abc-defg-hij   # preview the alarm window
 "$app" --enable       # register the LaunchAgent (the settings window does this too)
 "$app" --disable
 ```

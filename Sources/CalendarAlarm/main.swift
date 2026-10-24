@@ -2,14 +2,15 @@ import CalendarAlarmCore
 import Foundation
 
 let usage = """
-    usage: CalendarAlarm [--settings | --sync | --status | --enable | --disable | --test-in <seconds> | --ring-now]
+    usage: CalendarAlarm [--settings | --sync | --status | --enable | --disable | --test-in <seconds> | --ring-now [title] [join-url]]
 
       --settings         open the settings window (default when launched from Finder)
       --sync             one background check; run by the LaunchAgent, not by hand
       --status           print background status recorded by the last check
       --enable/--disable register or remove the background LaunchAgent
       --test-in N        ask the background check to ring a test alarm in N seconds
-      --ring-now         show a test alarm immediately in this process
+      --ring-now [title] [join-url]
+                         show an alarm immediately in this process, to preview it
     """
 
 func fail(_ message: String) -> Never {
@@ -53,7 +54,10 @@ case "--events":
     }
 
 case "--ring-now":
-    AlarmPresenter.runApp(alarms: [Alarm(occurrence: .test(at: Date().addingTimeInterval(300)), fireAt: Date(), ledgerKeys: [])], store: nil)
+    var occurrence = Occurrence.test(at: Date().addingTimeInterval(300))
+    if arguments.count > 1 { occurrence.title = arguments[1]; occurrence.calendarTitle = "" }
+    if arguments.count > 2 { occurrence.joinURL = URL(string: arguments[2]) }
+    AlarmPresenter.runApp(alarms: [Alarm(occurrence: occurrence, fireAt: Date(), ledgerKeys: [])], store: nil)
 
 case nil, "--settings":
     SettingsController.run()
