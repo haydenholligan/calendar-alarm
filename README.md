@@ -35,7 +35,8 @@ Calendar Alarm combines the two: every event on every calendar, rung loudly, wit
 
 Early release, in daily use on one MacBook Air (macOS 26.5).
 
-- **Verified on that Mac:** background checks with Calendar access, alarms ringing on time, snooze, test alarms, the compact window, self-repair after a rebuild, and the idle cost over 24 hours of normal use.
+- **Verified on that Mac:** background checks with Calendar access, alarms ringing on time, snooze, test alarms, self-repair after a rebuild, and the idle cost over 24 hours of normal use.
+- **Also checked on a Mac mini:** the full-screen and compact alarm windows (see the demo above).
 - **Covered by unit tests only so far:** the crash retry, and skipping an alarm left on screen while the lid was closed.
 - **Not yet verified on real hardware:** ringing while the screen is locked, over a full-screen app, with an external display, and after a restart and login.
 
