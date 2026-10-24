@@ -23,13 +23,23 @@ Calendar Alarm combines the two: every event on every calendar, rung loudly, wit
 ## What it focuses on
 
 - **Nothing resident.** Each check is a fresh process that exits in a fraction of a second. Over a measured 24 hours of normal use on a MacBook Air, no Calendar Alarm process was running 98.3% of the time. Average memory was 0.22 MB, and each idle check took 38 ms of CPU and peaked at 4.3 MB. The hard limit for any process that stays around without ringing is 15 MB. Details in [`docs/feasibility.md`](docs/feasibility.md).
-- **Hard to miss.** The alarm covers the screen, appears above full-screen apps and on every Space, and loops a sound until you press Dismiss, Snooze, or Join. If the screen is locked, the sound still plays. Keys are ignored for the first second, so a Return you were typing elsewhere can't dismiss it unseen. A compact window is available if full screen is too much.
+- **Hard to miss.** The alarm covers the screen, appears above full-screen apps and on every Space, and loops a sound until you press Dismiss, Snooze, or Join. Keys are ignored for the first second, so a Return you were typing elsewhere can't dismiss it unseen. A compact window is available if full screen is too much.
 - **Every calendar, automatically.** It reads what macOS Calendar already syncs: iCloud, Google, Exchange, and local calendars. There's no per-event setup and no separate sign-in. Moved, cancelled, and declined events are picked up at the next check.
 - **Gets you into the meeting.** **Join** opens the event's Zoom, Google Meet, Teams, or Webex link directly, even when your company's mail security has wrapped it (Microsoft Safe Links, Proofpoint, Barracuda). Links are unwrapped on your Mac, with no network request.
 - **Private.** No network access, analytics, or account. Saved state holds hashed keys and timestamps, never event details.
 - **Recovers on its own.** If an alarm crashes before you respond, it rings once more. If the app is moved or rebuilt, opening it repairs the background agent.
 - **Small and native.** Swift, AppKit, and EventKit, with no third-party dependencies. MIT licensed.
 - **Honest about its limits.** It can't ring while the Mac is asleep, and it doesn't claim zero cost. See [Limitations](#limitations).
+
+## Status
+
+Early release, in daily use on one MacBook Air (macOS 26.5).
+
+- **Verified on that Mac:** background checks with Calendar access, alarms ringing on time, snooze, test alarms, the compact window, self-repair after a rebuild, and the idle cost over 24 hours of normal use.
+- **Covered by unit tests only so far:** the crash retry, and skipping an alarm left on screen while the lid was closed.
+- **Not yet verified on real hardware:** ringing while the screen is locked, over a full-screen app, with an external display, and after a restart and login.
+
+If you try one of these, please report what happened in [Issues](https://github.com/haydenholligan/calendar-alarm/issues).
 
 ## Requirements
 
@@ -82,7 +92,7 @@ app="/Applications/Calendar Alarm.app/Contents/MacOS/CalendarAlarm"
 
 - **It can't ring while the Mac is asleep, shut down, or logged out.** After waking, alarms within the 5-minute grace window ring. Older ones are skipped.
 - Events have to reach macOS Calendar first. Upstream sync delays from iCloud, Google, or Exchange are outside its control.
-- If the screen is locked, the sound plays but the window only appears after you unlock. Muted output or missing speakers silence it; the window still shows.
+- If the screen is locked, the sound should play, but the window only appears after you unlock (not yet verified). Muted output or missing speakers silence it; the window still shows.
 - "Nothing in the background" means no Calendar Alarm process between checks. It does not mean zero cost. A check runs every minute; `--status` reports the measured CPU and memory per check.
 - **If you move the app, or rebuild it ad-hoc, open it once.** The background agent stays registered to the old copy, and its checks fail until the app is opened. Settings detects this and re-registers the agent. Nothing can notice it without the app running.
 - Not sandboxed and not on the App Store.
