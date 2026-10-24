@@ -143,6 +143,9 @@ final class AlarmWindow: NSWindow {
     private let queueLabel = AlarmWindow.label(size: 16, weight: .regular)
     private let joinButton = NSButton(title: "Join", target: nil, action: nil)
     private var start = Date()
+    /// Keys are ignored briefly after each alarm appears: the window takes focus,
+    /// and a Return or "j" typed for another app must not dismiss or join unseen.
+    private var keysAllowedAt = Date.distantFuture
 
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { true }
@@ -236,6 +239,7 @@ final class AlarmWindow: NSWindow {
         joinButton.isHidden = o.joinURL == nil
         updateCountdown()
         fitToScreen()
+        keysAllowedAt = Date().addingTimeInterval(1)
         makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
     }
@@ -265,7 +269,13 @@ final class AlarmWindow: NSWindow {
         setFrame(NSRect(origin: origin, size: size), display: true)
     }
 
-    override func cancelOperation(_ sender: Any?) { presenter.dismiss() }
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        Date() < keysAllowedAt ? true : super.performKeyEquivalent(with: event)
+    }
+
+    override func cancelOperation(_ sender: Any?) {
+        if Date() >= keysAllowedAt { presenter.dismiss() }
+    }
     @objc private func dismissClicked() { presenter.dismiss() }
     @objc private func joinClicked() { presenter.join() }
     @objc private func snoozeClicked(_ sender: NSButton) { presenter.snooze(minutes: sender.tag) }

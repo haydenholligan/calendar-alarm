@@ -41,6 +41,7 @@ public enum Planner {
             && !(config.skipAllDay && o.isAllDay)
             && !(config.skipDeclined && o.isDeclined)
             && !config.disabledCalendarIDs.contains(o.calendarID)
+            && !config.skipTitlesContaining.contains { !$0.isEmpty && o.title.localizedCaseInsensitiveContains($0) }
     }
 
     /// Every alarm implied by the events, snoozes and test requests, fired or not.

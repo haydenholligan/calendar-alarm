@@ -55,7 +55,7 @@ Per-event job management is no longer needed. The one static agent registered wi
 
 The fix is in `Agent.register(store:)`, called when Settings opens and by `--enable`. Each check records the bundle path and an executable identity (inode plus modification time). If either differs from the running app, or the last check is more than 150 s old, it re-registers using the wait-for-`notRegistered` sequence. It skips this when a check holds the run lock, because unregistering would kill a ringing alarm. Both the moved case and the ad-hoc rebuild case were broken on purpose and then repaired by a single `--enable`. There's no way to detect a moved app without something running, so the README tells users to open the app once after moving it.
 
-`scripts/uninstall.sh` was verified on the mini. It turns the agent off, removes the app and state, and resets Calendar permission. Afterwards no job remains (`launchctl print` says `Bad request`) and no process remains.
+`scripts/uninstall.sh` was verified on a Mac mini. It turns the agent off, removes the app and state, and resets Calendar permission. Afterwards no job remains (`launchctl print` says `Bad request`) and no process remains.
 
 ## Cost of an idle check (app's own measurement)
 

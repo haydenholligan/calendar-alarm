@@ -19,9 +19,9 @@ Calendar Alarm combines the two: every event on every calendar, rung loudly, wit
 ## What it focuses on
 
 - **Nothing resident.** Each check is a fresh process that exits in a fraction of a second. Over a measured 24 hours of normal use on a MacBook Air, no Calendar Alarm process was running 98.3% of the time. Average memory was 0.22 MB, and each idle check took 38 ms of CPU and peaked at 4.3 MB. The hard limit for any process that stays around without ringing is 15 MB. Details in [`docs/feasibility.md`](docs/feasibility.md).
-- **Hard to miss.** The alarm covers the screen, appears above full-screen apps and on every Space, and loops a sound until you press Dismiss, Snooze, or Join. If the screen is locked, the sound still plays. A compact window is available if full screen is too much.
+- **Hard to miss.** The alarm covers the screen, appears above full-screen apps and on every Space, and loops a sound until you press Dismiss, Snooze, or Join. If the screen is locked, the sound still plays. Keys are ignored for the first second, so a Return you were typing elsewhere can't dismiss it unseen. A compact window is available if full screen is too much.
 - **Every calendar, automatically.** It reads what macOS Calendar already syncs: iCloud, Google, Exchange, and local calendars. There's no per-event setup and no separate sign-in. Moved, cancelled, and declined events are picked up at the next check.
-- **Gets you into the meeting.** **Join** opens the event's Zoom, Google Meet, or Teams link directly.
+- **Gets you into the meeting.** **Join** opens the event's Zoom, Google Meet, Teams, or Webex link directly, even when your company's mail security has wrapped it (Microsoft Safe Links, Proofpoint, Barracuda). Links are unwrapped on your Mac, with no network request.
 - **Private.** No network access, analytics, or account. Saved state holds hashed keys and timestamps, never event details.
 - **Recovers on its own.** If an alarm crashes before you respond, it rings once more. If the app is moved or rebuilt, opening it repairs the background agent.
 - **Small and native.** Swift, AppKit, and EventKit, with no third-party dependencies. MIT licensed.
@@ -52,14 +52,14 @@ Calendar accounts must already be added in System Settings › Internet Accounts
 
 ## Defaults
 
-- All calendars, timed events only. All-day and declined events are skipped.
+- All calendars, timed events only. All-day and declined events are skipped. Events can also be skipped by title in `config.json` (for example `"skipTitlesContaining": ["Lunch", "PTO"]`).
 - One alarm 5 minutes before start. Multiple lead times can be set in `config.json` (for example `"leadMinutes": [5, 0]`).
-- Snooze for 1, 5, or 10 minutes. **Join** appears for Zoom, Google Meet, and Teams links.
+- Snooze for 1, 5, or 10 minutes. **Join** appears for Zoom, Google Meet, Teams, and Webex links.
 - Full-screen alarm. Untick **Cover the whole screen** in Settings for a compact floating window instead. Either way it stays above full-screen apps.
 - If an alarm process crashes before you respond, the next check shows it once more, as long as it's still within the grace window.
 - Alarms missed by more than 5 minutes (asleep, logged out) are skipped, not replayed.
 
-Config: `~/Library/Application Support/com.corseapps.calendaralarm/config.json`. It holds `disabledCalendarIDs`, `leadMinutes`, `graceMinutes`, `skipAllDay`, `skipDeclined`, and `fullScreen`.
+Config: `~/Library/Application Support/com.corseapps.calendaralarm/config.json`. It holds `disabledCalendarIDs`, `leadMinutes`, `graceMinutes`, `skipAllDay`, `skipDeclined`, `skipTitlesContaining`, and `fullScreen`.
 
 ## Command line
 
@@ -99,7 +99,7 @@ Event data stays on your Mac. There is no network access, no analytics, and no c
 ## Development
 
 ```sh
-make test   # swift test: planner, snooze, dedupe, link detection, storage
+make test   # swift test: planner, snooze, dedupe, link detection and unwrapping, storage
 make app    # build and sign build/Calendar Alarm.app (universal; ARCHS=arm64 is faster)
 ```
 

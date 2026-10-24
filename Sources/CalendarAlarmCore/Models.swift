@@ -75,6 +75,8 @@ public struct Config: Codable, Sendable, Equatable {
     public var graceMinutes: Int = 5
     public var skipAllDay = true
     public var skipDeclined = true
+    /// Events whose title contains any of these (ignoring case) never ring, for example "Lunch" or "PTO".
+    public var skipTitlesContaining: [String] = []
     /// Full-screen alarm, or a compact floating window when false.
     public var fullScreen = true
 
@@ -88,6 +90,7 @@ public struct Config: Codable, Sendable, Equatable {
         graceMinutes = try c.decodeIfPresent(Int.self, forKey: .graceMinutes) ?? d.graceMinutes
         skipAllDay = try c.decodeIfPresent(Bool.self, forKey: .skipAllDay) ?? d.skipAllDay
         skipDeclined = try c.decodeIfPresent(Bool.self, forKey: .skipDeclined) ?? d.skipDeclined
+        skipTitlesContaining = try c.decodeIfPresent([String].self, forKey: .skipTitlesContaining) ?? d.skipTitlesContaining
         fullScreen = try c.decodeIfPresent(Bool.self, forKey: .fullScreen) ?? d.fullScreen
     }
 }

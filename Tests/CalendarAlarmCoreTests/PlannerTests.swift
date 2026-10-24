@@ -183,6 +183,12 @@ func plan(_ events: [Occurrence], config: Config = Config(), state: State = Stat
         "https://meet.google.com/abc-defg-hij",
         "https://teams.microsoft.com/l/meetup-join/19%3ameeting_x/0?context=y",
         "https://teams.live.com/meet/9312345",
+        "https://zoom.com/j/123456789",
+        "https://agency.zoomgov.com/j/1612345678?pwd=x-y_z.1",
+        "https://gov.teams.microsoft.us/l/meetup-join/19%3ameeting_x/0",
+        "https://teams.cloud.microsoft/meet/2345678?p=abc",
+        "https://acme.webex.com/meet/jdoe",
+        "https://acme.webex.com/acme/j.php?MTID=m0123456789abcdef",
     ])
     func findsSupportedLinks(_ link: String) {
         #expect(ConferenceLink.find(in: ["Join here: \(link) thanks"])?.absoluteString == link)
@@ -192,6 +198,9 @@ func plan(_ events: [Occurrence], config: Config = Config(), state: State = Stat
         "http://zoom.us/j/123",
         "https://zoom.us/",
         "https://evilzoom.us/j/123",
+        "https://st1.zoom.us/static/6.3.1/image/new/ZoomLogo.png",
+        "https://acme.webex.com/acme/j.php",
+        "https://www.google.com/url?q=https://example.com/j/1",
         "https://example.com/meet.google.com/abc",
         "no link here",
     ])
@@ -199,9 +208,50 @@ func plan(_ events: [Occurrence], config: Config = Config(), state: State = Stat
         #expect(ConferenceLink.find(in: [text]) == nil)
     }
 
+    @Test(arguments: [
+        // Microsoft Safe Links, as plain text and as escaped in an HTML body.
+        "https://nam12.safelinks.protection.outlook.com/?url=https%3A%2F%2Fus02web.zoom.us%2Fj%2F123456789%3Fpwd%3Dabc&data=05%7C02&sdata=x&reserved=0",
+        "https://nam12.safelinks.protection.outlook.com/?url=https%3A%2F%2Fus02web.zoom.us%2Fj%2F123456789%3Fpwd%3Dabc&amp;data=05&amp;reserved=0",
+        // Proofpoint v2 and v3.
+        "https://urldefense.proofpoint.com/v2/url?u=https-3A__us02web.zoom.us_j_123456789-3Fpwd-3Dabc&d=DwMFAg&c=x",
+        "https://urldefense.com/v3/__https://us02web.zoom.us/j/123456789*pwd*abc__;Pz0!!ACWV5N9M2RV99hQ!sig$",
+        // Barracuda, and a Google redirect.
+        "https://linkprotect.cudasvc.com/url?a=https%3a%2f%2fus02web.zoom.us%2fj%2f123456789%3fpwd%3dabc&c=E,1,x",
+        "https://www.google.com/url?q=https://us02web.zoom.us/j/123456789?pwd%3Dabc&sa=D&ust=1",
+    ])
+    func unwrapsProtectedLinks(_ wrapped: String) {
+        #expect(ConferenceLink.find(in: ["Join: \(wrapped)"])?.absoluteString == "https://us02web.zoom.us/j/123456789?pwd=abc")
+    }
+
+    @Test func unwrapsNestedWrappers() {
+        let inner = "https://urldefense.proofpoint.com/v2/url?u=https-3A__meet.google.com_abc-2Ddefg-2Dhij&d=x"
+        let outer = "https://eur01.safelinks.protection.outlook.com/?url=" + inner.addingPercentEncoding(withAllowedCharacters: .alphanumerics)! + "&data=1"
+        #expect(ConferenceLink.find(in: [outer])?.absoluteString == "https://meet.google.com/abc-defg-hij")
+    }
+
+    @Test func proofpointV3Runs() {
+        // "**A" stands for the next two replaced characters.
+        #expect(ConferenceLink.proofpointV3("https://x.test/a**Ab__;Pz0!!sig") == "https://x.test/a?=b")
+    }
+
     @Test func prefersEarlierField() {
         let url = ConferenceLink.find(in: ["https://meet.google.com/aaa-bbbb-ccc", "https://zoom.us/j/1"])
         #expect(url?.host == "meet.google.com")
+    }
+}
+
+@Suite struct TitleFilterTests {
+    @Test func skipsTitlesContainingKeyword() {
+        var config = Config()
+        config.skipTitlesContaining = ["lunch", "PTO", ""]
+        #expect(plan([event("Team Lunch", startsIn: 5)], config: config) == .idle)
+        #expect(plan([event("pto - Sam", startsIn: 5)], config: config) == .idle)
+        guard case .ring = plan([event("Standup", startsIn: 5)], config: config) else { Issue.record("expected ring"); return }
+    }
+
+    @Test func configWithoutKeywordsDecodes() throws {
+        let config = try JSONDecoder().decode(Config.self, from: Data(#"{"leadMinutes":[2]}"#.utf8))
+        #expect(config.skipTitlesContaining.isEmpty)
     }
 }
 
